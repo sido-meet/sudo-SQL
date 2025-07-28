@@ -9,4 +9,8 @@ dependencies = [
     "transformers",
     "torch",
     "pyyaml",
+    "datasets",
+    "peft",
+    "trl",
+    "accelerate",
 ]
