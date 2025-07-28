@@ -50,7 +50,46 @@ huggingface_t5:
     model_name: "t5-small"
 ```
 
-## Usage
+## End-to-End Workflow
+
+The framework is designed for a seamless two-step workflow: from a live database to a generated SQL query.
+
+### Step 1: Generate Database Schema
+
+First, use the `scripts/generate_schema.py` script to connect to your database and automatically generate a schema representation file. This file contains the necessary context for the language model.
+
+`D-Schema` supports multiple output formats, which can be chosen with the `--schema-type` flag. The best choice depends on your database complexity and the model you are using:
+
+-   `ddl`: (Default) Standard `CREATE TABLE` statements. Good for general use.
+-   `m-schema`: A compact representation optimized for large, complex databases.
+-   `mac-sql`: Includes `ALTER TABLE` statements to explicitly define foreign key relationships, which can help models understand joins.
+
+```bash
+# Example: Generate a standard DDL schema from a local SQLite database
+python scripts/generate_schema.py \
+    --db_uri "sqlite:///my_database.db" \
+    --output_path "my_schema.sql" \
+    --schema-type "ddl"
+
+# Example: Generate an M-Schema for a PostgreSQL database
+python scripts/generate_schema.py \
+    --db_uri "postgresql://user:pass@localhost/mydatabase" \
+    --output_path "my_schema_m.txt" \
+    --schema-type "m-schema"
+```
+
+
+### Step 2: Generate SQL from a Question
+
+Once you have your schema file, you can use `main.py` to ask a question in natural language and get a SQL query in return.
+
+```bash
+python main.py "How many users are there?" my_schema.sql --provider openai_gpt4
+```
+
+This completes the full Text-to-SQL pipeline.
+
+## Advanced Usage
 
 `sudo-SQL` provides a powerful command-line interface (`main.py`) for inference and training scripts in the `sudo_sql/training/` directory.
 
