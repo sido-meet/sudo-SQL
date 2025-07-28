@@ -17,7 +17,7 @@ This project is the second stage of a larger vision, building upon the schema ge
     -   **Critic Agent**: A secondary agent that reviews, validates, and corrects generated SQL for higher precision.
 -   **Flexible Training Pipelines**:
     -   **Supervised Fine-Tuning (SFT)**: Adapt models to specific database schemas or question styles.
-    -   **Reinforcement Learning (RL)**: Further refine models based on execution feedback.
+    -   **Reinforcement Learning (RL) with verl**: Further refine models based on execution feedback using the `verl` library.
 -   **Efficient Training Techniques**:
     -   **LoRA / QLoRA**: Full support for parameter-efficient fine-tuning to reduce computational costs.
 -   **One-Click Deployment**: Scripts and tools to simplify the deployment of trained models as services.
@@ -30,7 +30,7 @@ This project is the second stage of a larger vision, building upon the schema ge
 2.  **Model Providers**: A unified interface connects to different LLM APIs or local model servers. Adding a new model is as simple as implementing this interface.
 3.  **Inference Engine**: Orchestrates the Text-to-SQL process. It takes a user question and a schema, queries the selected model provider(s), and passes the output to the agentic layer.
 4.  **Agentic Layer**: This is where advanced logic resides. The `Critic Agent` and `Voting` mechanisms operate here to refine the final SQL query.
-5.  **Training Pipelines**: Self-contained scripts and modules for SFT and RL, leveraging libraries like Hugging Face `transformers`, `peft`, and `trl`.
+5.  **Training Pipelines**: Self-contained scripts and modules for SFT and RL, leveraging libraries like Hugging Face `transformers`, `peft`, and `verl`.
 
 ## Directory Structure
 
@@ -115,7 +115,7 @@ This project will be developed in phases to ensure a stable and feature-rich pro
 
 ### Phase 4: Reinforcement Learning & Deployment
 
--   [ ] **RL Pipeline**: Research and implement an RL-based fine-tuning pipeline (e.g., using `trl`) to optimize SQL generation from database feedback.
+-   [ ] **RL Pipeline with verl**: Research and implement an RL-based fine-tuning pipeline using `verl` to optimize SQL generation from database feedback.
 -   [ ] **One-Click Deployment**: Create shell scripts and Dockerfiles to package and deploy the inference engine as a FastAPI service.
 -   [ ] **Comprehensive CLI/UI**: Expand the CLI with more features or build a simple Streamlit/Gradio web UI for demos.
 
