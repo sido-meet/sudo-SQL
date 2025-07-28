@@ -21,17 +21,10 @@ class OpenAIProvider(BaseModelProvider):
             raise ValueError("OpenAI API key not provided. Please set the OPENAI_API_KEY environment variable.")
         self.client = OpenAI(api_key=self.api_key)
 
-    def generate_sql(self, question: str, schema: str) -> str:
+    def generate(self, prompt: str) -> str:
         """
-        Generates SQL using the specified OpenAI model.
+        Generates text using the specified OpenAI model.
         """
-        prompt = f"""Given the following database schema:
-{schema}
-
-Please generate the SQL query for the following question:
-\"{question}\"
-"""
-        
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[

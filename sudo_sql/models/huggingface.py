@@ -15,13 +15,14 @@ class HuggingFaceProvider(BaseModelProvider):
         self.model_name = model_name
         self.pipeline = pipeline("text2text-generation", model=self.model_name)
 
-    def generate_sql(self, question: str, schema: str) -> str:
+    def generate(self, prompt: str) -> str:
         """
-        Generates SQL using the specified Hugging Face model.
+        Generates text using the specified Hugging Face model.
         """
-        # T5 models expect a prefix for the task, "translate English to SQL: " is a common one.
-        input_text = f"translate English to SQL: {question} schema: {schema}"
-        
-        result = self.pipeline(input_text)
+        # T5 models expect a prefix for the task, we will add it here if it's not already present.
+        if not prompt.startswith("translate English to SQL:"):
+            prompt = f"translate English to SQL: {prompt}"
+
+        result = self.pipeline(prompt)
         
         return result[0]['generated_text'].strip()

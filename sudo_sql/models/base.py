@@ -7,9 +7,21 @@ class BaseModelProvider(ABC):
     """
 
     @abstractmethod
+    def generate(self, prompt: str) -> str:
+        """
+        The core generation method that takes a formatted prompt and returns the model's output.
+
+        Args:
+            prompt: The complete prompt to be sent to the model.
+
+        Returns:
+            The generated text as a string.
+        """
+        pass
+
     def generate_sql(self, question: str, schema: str) -> str:
         """
-        Generates an SQL query based on a natural language question and a database schema.
+        Generates an SQL query by creating a specific prompt and calling the generate method.
 
         Args:
             question: The natural language question from the user.
@@ -18,4 +30,10 @@ class BaseModelProvider(ABC):
         Returns:
             The generated SQL query as a string.
         """
-        pass
+        prompt = f"""Given the following database schema:
+{schema}
+
+Please generate the SQL query for the following question:
+\"{question}\"
+"""
+        return self.generate(prompt)

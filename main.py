@@ -9,6 +9,7 @@ def main():
                         help="The model provider to use.")
     parser.add_argument("--config", type=str, default="configs/models.yaml",
                         help="Path to the configuration file.")
+    parser.add_argument("--use-critic", action="store_true", help="Use the Critic Agent to review and correct the SQL.")
     
     args = parser.parse_args()
 
@@ -17,12 +18,16 @@ def main():
         schema = f.read()
 
     # Get the inference engine
-    engine = get_engine(provider_name=args.provider, config_path=args.config)
+    engine = get_engine(provider_name=args.provider, config_path=args.config, with_critic=args.use_critic)
 
     # Generate the SQL query
-    sql_query = engine.run(question=args.question, schema=schema)
+    if args.use_critic:
+        print("Running with Critic Agent...")
+        sql_query = engine.run_with_critic(question=args.question, schema=schema)
+    else:
+        sql_query = engine.run(question=args.question, schema=schema)
 
-    print("\nGenerated SQL Query:")
+    print("\nFinal SQL Query:")
     print(sql_query)
 
 if __name__ == "__main__":
