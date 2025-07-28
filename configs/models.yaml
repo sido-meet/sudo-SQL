@@ -1,10 +1,17 @@
 # configs/models.yaml
 
-openai:
-  model: "gpt-4"
-  # It's recommended to set the API key as an environment variable (OPENAI_API_KEY)
-  # for security reasons. However, you can uncomment and set it here if needed.
-  # api_key: "your_openai_api_key"
+openai_gpt4:
+  type: "openai"
+  args:
+    model: "gpt-4"
+    # api_key can be set here or via environment variable OPENAI_API_KEY
 
-huggingface:
-  model_name: "t5-small"
+openai_gpt3_5:
+  type: "openai"
+  args:
+    model: "gpt-3.5-turbo"
+
+huggingface_t5:
+  type: "huggingface"
+  args:
+    model_name: "t5-small"
