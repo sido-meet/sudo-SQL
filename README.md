@@ -8,120 +8,117 @@ This project is the second stage of a larger vision, building upon the schema ge
 
 ## Core Features
 
--   **Multi-Model Support**: Pluggable architecture to easily integrate with various LLMs, including:
-    -   OpenAI (GPT-4, GPT-3.5)
-    -   Anthropic (Claude 3)
-    -   Local models via Ollama, Hugging Face Transformers.
+-   **Multi-Model Support**: Pluggable architecture to easily integrate with various LLMs. Configure models centrally in `configs/models.yaml`.
 -   **Advanced Inference Strategies**:
-    -   **Multi-model Voting**: Enhance accuracy by polling multiple LLMs.
+    -   **Multi-model Voting**: Enhance accuracy by polling multiple LLMs and choosing the most common response.
     -   **Critic Agent**: A secondary agent that reviews, validates, and corrects generated SQL for higher precision.
 -   **Flexible Training Pipelines**:
-    -   **Supervised Fine-Tuning (SFT)**: Adapt models to specific database schemas or question styles.
-    -   **Reinforcement Learning (RL) with verl**: Further refine models based on execution feedback using the `verl` library.
--   **Efficient Training Techniques**:
-    -   **LoRA / QLoRA**: Full support for parameter-efficient fine-tuning to reduce computational costs.
--   **One-Click Deployment**: Scripts and tools to simplify the deployment of trained models as services.
+    -   **Supervised Fine-Tuning (SFT)**: Adapt models to specific database schemas or question styles using Hugging Face `trl` and `peft` for LoRA.
+    -   **Reinforcement Learning (RL) with `verl`**: Further refine models based on direct feedback from a live database environment.
+-   **Efficient Training Techniques**: Full support for parameter-efficient fine-tuning (PEFT) via LoRA to reduce computational costs.
 
-## Architecture & Design
+## Getting Started
 
-`sudo-SQL` is designed with modularity at its core. The system is broken down into distinct components that can be developed, tested, and extended independently.
+### 1. Installation
 
-1.  **Schema Input**: The framework ingests database schemas pre-processed by `D-Schema` or a similar tool.
-2.  **Model Providers**: A unified interface connects to different LLM APIs or local model servers. Adding a new model is as simple as implementing this interface.
-3.  **Inference Engine**: Orchestrates the Text-to-SQL process. It takes a user question and a schema, queries the selected model provider(s), and passes the output to the agentic layer.
-4.  **Agentic Layer**: This is where advanced logic resides. The `Critic Agent` and `Voting` mechanisms operate here to refine the final SQL query.
-5.  **Training Pipelines**: Self-contained scripts and modules for SFT and RL, leveraging libraries like Hugging Face `transformers`, `peft`, and `verl`.
+First, clone the repository and install the required dependencies using `uv`.
 
-## Directory Structure
-
-The project follows a structured layout to maintain clarity and scalability.
-
+```bash
+git clone https://github.com/sido-meet/sudo-SQL.git
+cd sudo-SQL
+uv pip install -r requirements.txt
 ```
-/
-├─── .gitignore
-├─── pyproject.toml
-├─── README.md
-├─── uv.lock
-│
-├─── configs/                  # Configuration files for models, training, etc.
-│    └─── models.yaml
-│
-├─── data/                     # Datasets for training and evaluation
-│    ├─── spider/
-│    └─── custom_dataset/
-│
-├─── docs/                     # Detailed documentation
-│
-├─── scripts/                  # Helper scripts (data processing, deployment)
-│    ├─── prepare_dataset.py
-│    └─── deploy_fastapi.sh
-│
-├─── sudo_sql/                 # Main source code
-│    ├─── __init__.py
-│    │
-│    ├─── agents/               # Critic and other agents
-│    │    ├─── __init__.py
-│    │    └─── critic.py
-│    │
-│    ├─── models/               # LLM provider integrations
-│    │    ├─── __init__.py
-│    │    ├─── base.py          # Base model provider interface
-│    │    ├─── openai.py
-│    │    └─── huggingface.py
-│    │
-│    ├─── inference/           # Core inference logic
-│    │    ├─── __init__.py
-│    │    └─── engine.py
-│    │
-│    ├─── training/            # SFT and RL training pipelines
-│    │    ├─── __init__.py
-│    │    ├─── sft/
-│    │    └─── rl/
-│    │
-│    └─── evaluation/          # SQL evaluation logic
-│         ├─── __init__.py
-│         └─── metrics.py
-│
-└─── tests/                    # Unit and integration tests
-     └─── test_inference.py
+*(Note: A `requirements.txt` can be generated from `pyproject.toml` if not present.)*
+
+### 2. Configuration
+
+Model configurations are managed in `configs/models.yaml`. You can define multiple providers here.
+
+```yaml
+# configs/models.yaml
+
+openai_gpt4:
+  type: "openai"
+  args:
+    model: "gpt-4"
+    # For OpenAI, set your API key as an environment variable:
+    # export OPENAI_API_KEY="your_key_here"
+
+huggingface_t5:
+  type: "huggingface"
+  args:
+    model_name: "t5-small"
+```
+
+## Usage
+
+`sudo-SQL` provides a powerful command-line interface (`main.py`) for inference and training scripts in the `sudo_sql/training/` directory.
+
+### Inference
+
+The primary tool for Text-to-SQL generation is `main.py`.
+
+**Basic Generation:**
+
+Use one or more `--provider` flags to select the models defined in your config file.
+
+```bash
+# Create a dummy schema file
+echo "CREATE TABLE users (id INT, name TEXT)" > schema.sql
+
+# Run inference with a single provider
+python main.py "Show me all user names" schema.sql --provider openai_gpt4
+```
+
+**Advanced Modes:**
+
+-   **Critic Mode**: The first provider generates the SQL, and a critic (using the same provider) reviews it.
+    ```bash
+    python main.py "List all users" schema.sql --provider openai_gpt4 --use-critic
+    ```
+
+-   **Voting Mode**: Multiple providers generate SQL, and the most common result is chosen.
+    ```bash
+    python main.py "Count the users" schema.sql --provider openai_gpt4 --provider huggingface_t5 --voting
+    ```
+
+### Training
+
+The framework includes scripts for both Supervised Fine-Tuning (SFT) and Reinforcement Learning (RL).
+
+**1. Supervised Fine-Tuning (SFT) with LoRA:**
+
+The `train.py` script in `sudo_sql/training/sft/` handles SFT. It downloads a dataset from Hugging Face, formats it, and uses `SFTTrainer` and LoRA to fine-tune a model.
+
+```bash
+python sudo_sql/training/sft/train.py \
+    --model_name "codellama/CodeLlama-7b-hf" \
+    --dataset_name "b-mc2/sql-create-context" \
+    --output_dir "./sft-output" \
+    --num_train_epochs 1
+```
+
+**2. Reinforcement Learning (RL) with `verl`:**
+
+The `train_with_verl.py` script in `sudo_sql/training/rl/` uses PPO to fine-tune a model based on feedback from a live database.
+
+```bash
+# You need a database file for the environment
+sqlite3 my_database.db "CREATE TABLE users (id INT, name TEXT);"
+
+python sudo_sql/training/rl/train_with_verl.py \
+    --model_name "codellama/CodeLlama-7b-hf" \
+    --db_path "my_database.db" \
+    --schema "CREATE TABLE users (id INT, name TEXT)" \
+    --question "List the names of all users"
 ```
 
 ## Project Roadmap
 
-This project will be developed in phases to ensure a stable and feature-rich progression.
-
-### Phase 1: Core Framework & Inference Engine (Current Focus)
-
--   [x] **Initial Project Setup**: Initialize project with `uv` and define structure.
--   [ ] **Directory Structure Implementation**: Create the folders and initial files outlined above.
--   [ ] **Unified Model Interface**: Design and implement the base `ModelProvider` class in `sudo_sql/models/base.py`.
--   [ ] **Initial Model Integrations**: Implement providers for OpenAI and a local Hugging Face model.
--   [ ] **Core Inference Engine**: Build the main inference pipeline that takes a question and schema, and returns a SQL query.
--   [ ] **Configuration Management**: Set up `configs/models.yaml` to handle API keys and model parameters.
--   [ ] **Basic CLI**: Create a simple command-line interface to test inference.
-
-### Phase 2: Supervised Fine-Tuning (SFT) with LoRA
-
--   [ ] **Data Handling**: Integrate Hugging Face `datasets` for loading and processing Text-to-SQL datasets.
--   [ ] **SFT Script**: Develop the main fine-tuning script in `sudo_sql/training/sft/`.
--   [ ] **LoRA/PEFT Integration**: Integrate the `peft` library to enable parameter-efficient fine-tuning.
--   [ ] **Evaluation Metrics**: Implement execution accuracy and exact match scoring in `sudo_sql/evaluation/`.
-
-### Phase 3: Advanced Agents & Multi-Model Strategies
-
--   [ ] **Critic Agent**: Develop the `Critic` agent to review and correct generated SQL. This will likely involve a separate LLM call with a specific prompt template.
--   [ ] **Multi-Model Voting**: Implement a strategy in the inference engine to query multiple models and select the best response.
--   [ ] **Agent Plugin System**: Design a simple plugin architecture to easily add or remove agents like the `Critic`.
-
-### Phase 4: Reinforcement Learning & Deployment
-
--   [ ] **RL Pipeline with verl**: Research and implement an RL-based fine-tuning pipeline using `verl` to optimize SQL generation from database feedback.
--   [ ] **One-Click Deployment**: Create shell scripts and Dockerfiles to package and deploy the inference engine as a FastAPI service.
--   [ ] **Comprehensive CLI/UI**: Expand the CLI with more features or build a simple Streamlit/Gradio web UI for demos.
-
-## Getting Started
-
-*(This section will be updated once Phase 1 is complete.)*
+-   [x] **Phase 1: Core Framework & Inference Engine**
+-   [x] **Phase 2: Supervised Fine-Tuning (SFT) with LoRA**
+-   [x] **Phase 3: Advanced Agents & Multi-Model Strategies**
+-   [x] **Phase 4: Reinforcement Learning with `verl`**
 
 ## Contributing
 
@@ -129,4 +126,4 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
