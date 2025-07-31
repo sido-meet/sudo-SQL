@@ -6,6 +6,7 @@ from sudo_sql.environments.base import BaseEnvironment
 from sudo_sql.environments.sft import SFTEnvironment
 from sudo_sql.environments.sql_execution import SQLExecutionEnvironment
 from sudo_sql.models.openai import OpenAIProvider
+from sudo_sql.data_loaders import get_data_loader
 
 class UnifiedPipeline:
     """
@@ -38,13 +39,12 @@ class UnifiedPipeline:
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
-    def _load_dataset(self, dataset_name: str) -> list[dict]:
+    def _load_dataset(self, dataset_name: str, data_path: str, split: str) -> list[dict]:
         """
-        Loads a dataset from the Hugging Face Hub.
+        Loads a dataset using the data loader factory.
         """
-        from datasets import load_dataset
-        dataset = load_dataset(dataset_name, split="train")
-        return [{"question": item["question"], "sql": item["answer"], "schema": item["context"]} for item in dataset]
+        loader = get_data_loader(dataset_name, data_path)
+        return loader.load_data(split)
 
     def _initialize_trainer(self):
         """
@@ -110,7 +110,7 @@ class UnifiedPipeline:
         """
         print("--- Running SFT ---")
         sft_config = self.config['sft']
-        dataset = self._load_dataset(sft_config['dataset'])
+        dataset = self._load_dataset(sft_config['dataset_name'], sft_config['data_path'], 'train')
         env = SFTEnvironment(dataset)
         ppo_trainer = self._initialize_trainer()
         self._train_loop(ppo_trainer, env, dataset)
@@ -140,35 +140,44 @@ class UnifiedPipeline:
 
     def _run_inference(self):
         """
-        Runs the inference process.
+        Runs the inference process on a dataset.
         """
         print("--- Running Inference ---")
+        infer_config = self.config['inference']
+        dataset = self._load_dataset(infer_config['dataset_name'], infer_config['data_path'], infer_config['split'])
+
         provider_type = self.model_config.get("provider")
         model_name = self.model_config.get("name")
-        infer_config = self.config['inference']
-        question = infer_config['question']
-        schema = infer_config['schema']
-        prompt_text = f"Given the schema: {schema}, generate the SQL for: {question}"
-        generated_sql = ""
 
         if provider_type == "openai":
             print(f"Using OpenAI provider with model: {model_name}")
             base_url = self.model_config.get("base_url")
             provider = OpenAIProvider(model=model_name, base_url=base_url)
-            generated_sql = provider.generate(prompt_text)
+
+            for item in dataset:
+                prompt_text = f"Given the schema: {item['schema']}, generate the SQL for: {item['question']}"
+                generated_sql = provider.generate(prompt_text)
+                print(f"\nQuestion: {item['question']}")
+                print(f"Generated SQL: {generated_sql}")
+                print(f"Ground Truth SQL: {item['sql']}")
         else:
+            # Local model inference remains the same, but now iterates through the dataset
             print(f"Using local Hugging Face model: {model_name}")
             device_map = self.model_config.get('device_map', self.device)
             model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map=device_map)
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             tokenizer.pad_token = tokenizer.eos_token
-            encoded_prompt = tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
-            generated_tokens = model.generate(
-                encoded_prompt,
-                max_new_tokens=self.generation_config.get('max_length', 128),
-            )
-            generated_sql = tokenizer.decode(generated_tokens[0], skip_special_tokens=True)
 
-        print(f"\nGenerated SQL:\n{generated_sql}")
+            for item in dataset:
+                prompt_text = f"Given the schema: {item['schema']}, generate the SQL for: {item['question']}"
+                encoded_prompt = tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
+                generated_tokens = model.generate(
+                    encoded_prompt,
+                    max_new_tokens=self.generation_config.get('max_length', 128),
+                )
+                generated_sql = tokenizer.decode(generated_tokens[0], skip_special_tokens=True)
+                print(f"\nQuestion: {item['question']}")
+                print(f"Generated SQL: {generated_sql}")
+                print(f"Ground Truth SQL: {item['sql']}")
+
         print("\n--- Inference complete ---")
-        return generated_sql

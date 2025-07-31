@@ -8,17 +8,30 @@ sys.path.insert(0, ".")
 
 from main import app
 
-
 @pytest.fixture
-def mock_openai():
-    with patch('sudo_sql.pipeline.OpenAIProvider') as mock_provider:
-        mock_instance = mock_provider.return_value
-        mock_instance.generate.return_value = "SELECT * FROM mocked_users;"
-        yield mock_provider
+def mock_data_loader():
+    with patch('sudo_sql.pipeline.get_data_loader') as mock_get_loader:
+        mock_loader_instance = MagicMock()
+        mock_loader_instance.load_data.return_value = [
+            {
+                'question': 'What is the capital of France?',
+                'sql': 'SELECT capital FROM countries WHERE name = "France"',
+                'db_id': 'countries',
+                'db_path': '/tmp/countries.sqlite',
+                'schema': 'CREATE TABLE countries (name TEXT, capital TEXT)',
+                'evidence': None,
+                'difficulty': None
+            }
+        ]
+        mock_get_loader.return_value = mock_loader_instance
+        yield mock_get_loader
 
+@patch('sudo_sql.pipeline.OpenAIProvider')
+def test_infer_command_with_mocked_loader(mock_openai_provider, mock_data_loader):
+    """Test the inference command with a mocked data loader and OpenAI provider."""
+    mock_openai_instance = mock_openai_provider.return_value
+    mock_openai_instance.generate.return_value = "SELECT capital FROM countries WHERE name = 'France'"
 
-def test_infer_command(mock_openai):
-    """Test the inference command with a mocked OpenAI provider."""
     runner = CliRunner()
     result = runner.invoke(
         app,
@@ -26,15 +39,11 @@ def test_infer_command(mock_openai):
     )
 
     assert result.exit_code == 0
-    assert "SELECT * FROM mocked_users;" in result.stdout
+    assert "SELECT capital FROM countries WHERE name = 'France'" in result.stdout
 
-    # Verify that the provider was called with the correct prompt
-    with open("configs/infer.yaml", "r") as f:
-        config = yaml.safe_load(f)
-    
-    infer_config = config['inference']
-    question = infer_config['question']
-    schema = infer_config['schema']
-    expected_prompt = f"Given the schema: {schema}, generate the SQL for: {question}"
+    # Verify that the data loader was called correctly
+    mock_data_loader.assert_called_once_with("spider", "./data/spider")
 
-    mock_openai.return_value.generate.assert_called_once_with(expected_prompt)
+    # Verify that the OpenAI provider was called with the correct prompt
+    expected_prompt = "Given the schema: CREATE TABLE countries (name TEXT, capital TEXT), generate the SQL for: What is the capital of France?"
+    mock_openai_instance.generate.assert_called_once_with(expected_prompt)
