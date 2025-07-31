@@ -11,3 +11,7 @@ inference:
   split: "dev"
   schema_type: "ddl-schema"
   use_cache: true
+
+  output:
+    save_path: "results/"
+    save_mode: "resume"

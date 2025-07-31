@@ -3,6 +3,7 @@
 
 /cache/
 /logs/
+/results/
 venv/
 ENV/
 env/
