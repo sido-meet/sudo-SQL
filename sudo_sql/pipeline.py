@@ -7,6 +7,7 @@ from sudo_sql.environments.sft import SFTEnvironment
 from sudo_sql.environments.sql_execution import SQLExecutionEnvironment
 from sudo_sql.models.openai import OpenAIProvider
 from sudo_sql.data_loaders import get_data_loader
+from sudo_sql.logger_config import logger
 
 class UnifiedPipeline:
     """
@@ -78,7 +79,7 @@ class UnifiedPipeline:
         max_length = self.generation_config.get('max_length', 512)
 
         for epoch in range(epochs):
-            print(f"--- Epoch {epoch + 1}/{epochs} ---")
+            logger.info(f"--- Epoch {epoch + 1}/{epochs} ---")
             for i, item in enumerate(dataset):
                 question = item['question']
                 schema = item['schema']
@@ -102,13 +103,13 @@ class UnifiedPipeline:
                 )
 
                 if i % 10 == 0:
-                    print(f"Step {i+1}/{len(dataset)} | Reward: {reward:.2f}")
+                    logger.info(f"Step {i+1}/{len(dataset)} | Reward: {reward:.2f}")
 
     def _run_sft(self):
         """
         Runs the Supervised Fine-Tuning (SFT) process.
         """
-        print("--- Running SFT ---")
+        logger.info("--- Running SFT ---")
         sft_config = self.config['sft']
         dataset = self._load_dataset(
             sft_config['dataset_name'], 
@@ -120,35 +121,35 @@ class UnifiedPipeline:
         env = SFTEnvironment(dataset)
         ppo_trainer = self._initialize_trainer()
         self._train_loop(ppo_trainer, env, dataset)
-        print("--- SFT complete ---")
+        logger.info("--- SFT complete ---")
         output_dir = self.training_config.get('output_dir')
         if output_dir:
-            print(f"Saving model to {output_dir}...")
+            logger.info(f"Saving model to {output_dir}...")
             ppo_trainer.save_model(output_dir)
-            print("Model saved.")
+            logger.info("Model saved.")
 
     def _run_rl(self):
         """
         Runs the Reinforcement Learning (RL) process.
         """
-        print("--- Running RL ---")
+        logger.info("--- Running RL ---")
         rl_config = self.config['rl']
         env = SQLExecutionEnvironment(db_path=rl_config['db_path'])
         ppo_trainer = self._initialize_trainer()
         rl_dataset = [{'question': rl_config['question'], 'schema': rl_config['schema'], 'sql': ''}] * self.training_config.get('steps', 100)
         self._train_loop(ppo_trainer, env, rl_dataset)
-        print("--- RL complete ---")
+        logger.info("--- RL complete ---")
         output_dir = self.training_config.get('output_dir')
         if output_dir:
-            print(f"Saving model to {output_dir}...")
+            logger.info(f"Saving model to {output_dir}...")
             ppo_trainer.save_model(output_dir)
-            print("Model saved.")
+            logger.info("Model saved.")
 
     def _run_inference(self):
         """
         Runs the inference process on a dataset.
         """
-        print("--- Running Inference ---")
+        logger.info("--- Running Inference ---")
         infer_config = self.config['inference']
         dataset = self._load_dataset(
             infer_config['dataset_name'], 
@@ -162,19 +163,19 @@ class UnifiedPipeline:
         model_name = self.model_config.get("name")
 
         if provider_type == "openai":
-            print(f"Using OpenAI provider with model: {model_name}")
+            logger.info(f"Using OpenAI provider with model: {model_name}")
             base_url = self.model_config.get("base_url")
             provider = OpenAIProvider(model=model_name, base_url=base_url)
 
             for item in dataset:
                 prompt_text = f"Given the schema: {item['schema']}, generate the SQL for: {item['question']}"
+                logger.debug(f"Generating SQL for question: {item['question']}")
                 generated_sql = provider.generate(prompt_text)
-                print(f"\nQuestion: {item['question']}")
-                print(f"Generated SQL: {generated_sql}")
-                print(f"Ground Truth SQL: {item['sql']}")
+                logger.info(f"Question: {item['question']}")
+                logger.info(f"Generated SQL: {generated_sql}")
+                logger.info(f"Ground Truth SQL: {item['sql']}")
         else:
-            # Local model inference remains the same, but now iterates through the dataset
-            print(f"Using local Hugging Face model: {model_name}")
+            logger.info(f"Using local Hugging Face model: {model_name}")
             device_map = self.model_config.get('device_map', self.device)
             model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map=device_map)
             tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -182,14 +183,15 @@ class UnifiedPipeline:
 
             for item in dataset:
                 prompt_text = f"Given the schema: {item['schema']}, generate the SQL for: {item['question']}"
+                logger.debug(f"Generating SQL for question: {item['question']}")
                 encoded_prompt = tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
                 generated_tokens = model.generate(
                     encoded_prompt,
                     max_new_tokens=self.generation_config.get('max_length', 128),
                 )
                 generated_sql = tokenizer.decode(generated_tokens[0], skip_special_tokens=True)
-                print(f"\nQuestion: {item['question']}")
-                print(f"Generated SQL: {generated_sql}")
-                print(f"Ground Truth SQL: {item['sql']}")
+                logger.info(f"Question: {item['question']}")
+                logger.info(f"Generated SQL: {generated_sql}")
+                logger.info(f"Ground Truth SQL: {item['sql']}")
 
-        print("\n--- Inference complete ---")
+        logger.info("--- Inference complete ---")

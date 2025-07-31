@@ -15,6 +15,7 @@ dependencies = [
     "accelerate",
     "verl",
     "d-schema @ git+https://github.com/sido-meet/D-Schema.git",
+    "loguru",
 ]
 
 [tool.setuptools.packages.find]

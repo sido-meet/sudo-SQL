@@ -1,10 +1,8 @@
-# Generated database schemas
-schemas/
-
 # Virtual environment
 .venv/
 
 /cache/
+/logs/
 venv/
 ENV/
 env/
