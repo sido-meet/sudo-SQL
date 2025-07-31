@@ -1,0 +1,22 @@
+# Example configuration for Reinforcement Learning (RL)
+mode: rl
+
+model:
+  name: "./sft-output" # Should be a model fine-tuned with SFT
+
+rl:
+  db_path: "data/database.sqlite"
+  question: "How many users are there?"
+  schema: "CREATE TABLE users (id INT, name TEXT);"
+
+ppo:
+  learning_rate: 1.41e-5
+  ppo_epochs: 4
+  batch_size: 256
+
+training:
+  steps: 100 # Number of interactions with the environment
+  output_dir: "./rl-output"
+
+generation:
+  max_length: 128

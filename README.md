@@ -1,163 +1,90 @@
-# sudo-SQL: Your Extensible Text-to-SQL Framework
+# sudo-SQL: A Unified Text-to-SQL Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An advanced, modular, and extensible framework designed to bridge the gap between natural language and SQL databases. `sudo-SQL` focuses on leveraging Large Language Models (LLMs) for high-accuracy Text-to-SQL generation, training, and deployment.
+**`sudo-SQL`** is an end-to-end, `verl`-native framework for building and training state-of-the-art Text-to-SQL models. Inspired by the flexibility and power of [verl](https://github.com/volcengine/verl), this project provides a single, unified pipeline for Supervised Fine-Tuning (SFT), Reinforcement Learning (RL), and high-performance Inference.
 
 This project is the second stage of a larger vision, building upon the schema generation capabilities of its sibling project, [D-Schema](https://github.com/sido-meet/D-Schema).
 
-## Core Features
+## Core Philosophy: A Unified Pipeline
 
--   **Multi-Model Support**: Pluggable architecture to easily integrate with various LLMs. Configure models centrally in `configs/models.yaml`.
--   **Advanced Inference Strategies**:
-    -   **Multi-model Voting**: Enhance accuracy by polling multiple LLMs and choosing the most common response.
-    -   **Critic Agent**: A secondary agent that reviews, validates, and corrects generated SQL for higher precision.
--   **Flexible Training Pipelines**:
-    -   **Supervised Fine-Tuning (SFT)**: Adapt models to specific database schemas or question styles using Hugging Face `trl` and `peft` for LoRA.
-    -   **Reinforcement Learning (RL) with `verl`**: Further refine models based on direct feedback from a live database environment.
--   **Efficient Training Techniques**: Full support for parameter-efficient fine-tuning (PEFT) via LoRA to reduce computational costs.
+The `sudo-SQL` framework is designed around a central principle: **unification**. By leveraging `verl` for all core operations, we eliminate the need for separate scripts and workflows for training and inference. This results in a more robust, maintainable, and powerful codebase.
 
-## Getting Started
+## Key Features
 
-### 1. Installation
+-   **`verl`-Native**: Built from the ground up to leverage the full power of the `verl` library.
+-   **Unified Pipeline**: A single, configurable pipeline for SFT, RL, and Inference.
+-   **Flexible RL Environments**:
+    -   `SFTEnvironment`: A specialized `verl` environment for Supervised Fine-Tuning, which rewards the model for generating correct SQL queries from a dataset.
+    -   `SQLExecutionEnvironment`: A `verl` environment for Reinforcement Learning, which provides feedback by executing generated SQL against a live database.
+-   **Dynamic Model Support**: Easily integrate and switch between different language models (e.g., OpenAI, Hugging Face).
+-   **Clear & Modular Structure**: A redesigned file structure that reflects the unified `verl` architecture.
 
-First, clone the repository and install the required dependencies using `uv`.
+## New File Structure
 
+The project will be reorganized to reflect the new, unified `verl`-based approach:
+
+```
+/home/sido/projects/sudo-SQL/
+├───.gitignore
+├───main.py                 # Main CLI entry point for all operations
+├───pyproject.toml
+├───README.md               # This file
+├───configs/
+│   ├───models.yaml         # Model provider configurations
+│   ├───sft.yaml            # Example config for an SFT run
+│   └───rl.yaml             # Example config for an RL run
+├───data/                   # Training and evaluation data
+├───schemas/                # Generated database schemas
+└───sudo_sql/
+    ├───__init__.py
+    ├───pipeline.py           # The core unified `verl` pipeline
+    ├───environments/
+    │   ├───__init__.py
+    │   ├───base.py             # Base environment class
+    │   ├───sft.py              # SFTEnvironment
+    │   └───sql_execution.py    # SQLExecutionEnvironment
+    └───models/
+        ├───__init__.py
+        ├───base.py
+        ├───huggingface.py
+        └───openai.py
+```
+
+## Execution Plan
+
+The refactoring will be executed in the following phases:
+
+1.  **Phase 1: Project Restructuring**: Create the new directory structure, move existing files, and remove obsolete ones.
+2.  **Phase 2: Environment Implementation**:
+    -   Create a `BaseEnvironment` class.
+    -   Implement `SFTEnvironment` for Supervised Fine-Tuning.
+    -   Refactor the existing `SQLExecutionEnvironment` to fit the new structure.
+3.  **Phase 3: Unified Pipeline Implementation**:
+    -   Create `sudo_sql/pipeline.py`, which will contain the core logic for running SFT, RL, and Inference using the `verl` framework based on a configuration file.
+4.  **Phase 4: CLI Entry Point**:
+    -   Refactor `main.py` to be a clean command-line interface that parses a configuration and calls the unified pipeline.
+5.  **Phase 5: Documentation & Testing**:
+    -   Update all documentation and add comprehensive tests for the new pipeline.
+
+## Usage (Post-Refactoring)
+
+Once the refactoring is complete, all operations will be run through `main.py` with a configuration file.
+
+**Supervised Fine-Tuning (SFT):**
 ```bash
-git clone https://github.com/sido-meet/sudo-SQL.git
-cd sudo-SQL
-uv pip install -r requirements.txt
-```
-*(Note: A `requirements.txt` can be generated from `pyproject.toml` if not present.)*
-
-### 2. Configuration
-
-Model configurations are managed in `configs/models.yaml`. You can define multiple providers here.
-
-```yaml
-# configs/models.yaml
-
-openai_gpt4:
-  type: "openai"
-  args:
-    model: "gpt-4"
-    # For OpenAI, set your API key as an environment variable:
-    # export OPENAI_API_KEY="your_key_here"
-
-huggingface_t5:
-  type: "huggingface"
-  args:
-    model_name: "t5-small"
+python main.py train --config configs/sft.yaml
 ```
 
-## End-to-End Workflow
-
-The framework is designed for a seamless two-step workflow: from a live database to a generated SQL query.
-
-### Step 1: Generate Database Schema
-
-First, use the `scripts/generate_schema.py` script to connect to your database and automatically generate a schema representation file. This file contains the necessary context for the language model.
-
-`D-Schema` supports multiple output formats, which can be chosen with the `--schema-type` flag. The best choice depends on your database complexity and the model you are using:
-
--   `ddl`: (Default) Standard `CREATE TABLE` statements. Good for general use.
--   `m-schema`: A compact representation optimized for large, complex databases.
--   `mac-sql`: Includes `ALTER TABLE` statements to explicitly define foreign key relationships, which can help models understand joins.
-
+**Reinforcement Learning (RL):**
 ```bash
-# Example: Generate a standard DDL schema from a local SQLite database
-python scripts/generate_schema.py \
-    --db_uri "sqlite:///my_database.db" \
-    --output_path "my_schema.sql" \
-    --schema-type "ddl"
-
-# Example: Generate an M-Schema for a PostgreSQL database
-python scripts/generate_schema.py \
-    --db_uri "postgresql://user:pass@localhost/mydatabase" \
-    --output_path "my_schema_m.txt" \
-    --schema-type "m-schema"
+python main.py train --config configs/rl.yaml
 ```
 
-
-### Step 2: Generate SQL from a Question
-
-Once you have your schema file, you can use `main.py` to ask a question in natural language and get a SQL query in return.
-
+**Inference:**
 ```bash
-python main.py "How many users are there?" my_schema.sql --provider openai_gpt4
+python main.py infer --model "openai_gpt4" --question "How many users are there?" --schema "CREATE TABLE users (id INT, name TEXT);"
 ```
-
-This completes the full Text-to-SQL pipeline.
-
-## Advanced Usage
-
-`sudo-SQL` provides a powerful command-line interface (`main.py`) for inference and training scripts in the `sudo_sql/training/` directory.
-
-### Inference
-
-The primary tool for Text-to-SQL generation is `main.py`.
-
-**Basic Generation:**
-
-Use one or more `--provider` flags to select the models defined in your config file.
-
-```bash
-# Create a dummy schema file
-echo "CREATE TABLE users (id INT, name TEXT)" > schema.sql
-
-# Run inference with a single provider
-python main.py "Show me all user names" schema.sql --provider openai_gpt4
-```
-
-**Advanced Modes:**
-
--   **Critic Mode**: The first provider generates the SQL, and a critic (using the same provider) reviews it.
-    ```bash
-    python main.py "List all users" schema.sql --provider openai_gpt4 --use-critic
-    ```
-
--   **Voting Mode**: Multiple providers generate SQL, and the most common result is chosen.
-    ```bash
-    python main.py "Count the users" schema.sql --provider openai_gpt4 --provider huggingface_t5 --voting
-    ```
-
-### Training
-
-The framework includes scripts for both Supervised Fine-Tuning (SFT) and Reinforcement Learning (RL).
-
-**1. Supervised Fine-Tuning (SFT) with LoRA:**
-
-The `train.py` script in `sudo_sql/training/sft/` handles SFT. It downloads a dataset from Hugging Face, formats it, and uses `SFTTrainer` and LoRA to fine-tune a model.
-
-```bash
-python sudo_sql/training/sft/train.py \
-    --model_name "codellama/CodeLlama-7b-hf" \
-    --dataset_name "b-mc2/sql-create-context" \
-    --output_dir "./sft-output" \
-    --num_train_epochs 1
-```
-
-**2. Reinforcement Learning (RL) with `verl`:**
-
-The `train_with_verl.py` script in `sudo_sql/training/rl/` uses PPO to fine-tune a model based on feedback from a live database.
-
-```bash
-# You need a database file for the environment
-sqlite3 my_database.db "CREATE TABLE users (id INT, name TEXT);"
-
-python sudo_sql/training/rl/train_with_verl.py \
-    --model_name "codellama/CodeLlama-7b-hf" \
-    --db_path "my_database.db" \
-    --schema "CREATE TABLE users (id INT, name TEXT)" \
-    --question "List the names of all users"
-```
-
-## Project Roadmap
-
--   [x] **Phase 1: Core Framework & Inference Engine**
--   [x] **Phase 2: Supervised Fine-Tuning (SFT) with LoRA**
--   [x] **Phase 3: Advanced Agents & Multi-Model Strategies**
--   [x] **Phase 4: Reinforcement Learning with `verl`**
 
 ## Contributing
 

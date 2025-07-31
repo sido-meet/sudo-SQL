@@ -1,0 +1,11 @@
+# Example configuration for Self-Hosted Inference
+mode: infer
+
+model:
+  provider: "openai"
+  name: "Qwen2.5-3B-Instruct"
+  base_url: "http://localhost:8192/v1"
+
+inference:
+  question: "How many users are there?"
+  schema: "CREATE TABLE users (id INT, name TEXT);"

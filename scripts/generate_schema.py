@@ -1,39 +1,57 @@
 # scripts/generate_schema.py
 
 import argparse
-from d_schema.generator import SchemaGenerator
+from d_schema import (
+    DatabaseParser,
+    DDLSchemaGenerator,
+    MSchemaGenerator,
+    MacSQLSchemaGenerator
+)
+
+# Map schema type keys to their corresponding generator classes
+available_generators = {
+    "ddl": DDLSchemaGenerator,
+    "m-schema": MSchemaGenerator,
+    "mac-sql": MacSQLSchemaGenerator,
+}
 
 def main():
     parser = argparse.ArgumentParser(description="Generate a database schema using D-Schema.")
     
-    parser.add_argument("--db_uri", type=str, required=True, 
-                        help="Database connection URI (e.g., 'postgresql://user:pass@host/db').")
+    parser.add_argument("--db_url", type=str, required=True, 
+                        help="Database connection URL (e.g., 'postgresql://user:pass@host/db').")
     parser.add_argument("--output_path", type=str, default="schema.sql",
                         help="Path to save the generated schema file.")
-    parser.add_argument("--schema-type", type=str, default="ddl", 
-                        choices=["ddl", "m-schema", "mac-sql"],
+    parser.add_argument("--schema_type", type=str, default="ddl", 
+                        choices=available_generators.keys(),
                         help="The type of schema representation to generate.")
-    
+    parser.add_argument("--profile", action="store_true",
+                        help="Enable profiling to gather statistics about the database.")
+
     args = parser.parse_args()
 
-    print(f"Connecting to {args.db_uri} to generate '{args.schema_type}' schema...")
+    print(f"Generating '{args.schema_type}' schema for {args.db_url}...")
 
     try:
-        generator = SchemaGenerator(db_uri=args.db_uri)
-        
-        # Call the appropriate generation method based on the selected type
-        if args.schema_type == "ddl":
-            schema = generator.generate_ddl()
-        elif args.schema_type == "m-schema":
-            schema = generator.generate_m_schema()
-        elif args.schema_type == "mac-sql":
-            schema = generator.generate_mac_sql()
+        # 1. Parse the database
+        db_parser = DatabaseParser(db_url=args.db_url)
+        database_schema = db_parser.parse(profile=args.profile)
+        print("Database parsed successfully.")
+
+        # 2. Get the selected generator class and instantiate it with the correct arguments
+        print(f"Generating {args.schema_type} schema...")
+        if args.schema_type == "m-schema":
+            generator_instance = MSchemaGenerator(schema=database_schema)
         else:
-            # This case should not be reached due to 'choices' in argparse
-            raise ValueError(f"Unknown schema type: {args.schema_type}")
-            
+            GeneratorClass = available_generators.get(args.schema_type)
+            generator_instance = GeneratorClass(tables=database_schema.tables)
+
+        # 3. Generate the schema string
+        output_schema = generator_instance.generate_schema()
+
+        # 4. Write the schema to the output file
         with open(args.output_path, 'w') as f:
-            f.write(schema)
+            f.write(output_schema)
             
         print(f"Schema successfully generated and saved to {args.output_path}")
 

@@ -1,0 +1,21 @@
+# Example configuration for Supervised Fine-Tuning (SFT)
+mode: sft
+
+model:
+  name: "codellama/CodeLlama-7b-hf"
+  # device_map: "auto" # Optional: uncomment to override default device mapping
+
+sft:
+  dataset: "b-mc2/sql-create-context"
+
+ppo:
+  learning_rate: 1.41e-5
+  ppo_epochs: 4
+  batch_size: 256
+
+training:
+  epochs: 1
+  output_dir: "./sft-output" # Optional: specify a directory to save the final model
+
+generation:
+  max_length: 512

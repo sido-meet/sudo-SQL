@@ -16,3 +16,7 @@ dependencies = [
     "verl",
     "d-schema @ git+https://github.com/sido-meet/D-Schema.git",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sudo_sql*"]
