@@ -39,12 +39,12 @@ class UnifiedPipeline:
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
-    def _load_dataset(self, dataset_name: str, data_path: str, split: str) -> list[dict]:
+    def _load_dataset(self, dataset_name: str, data_path: str, split: str, schema_type: str, use_cache: bool) -> list[dict]:
         """
         Loads a dataset using the data loader factory.
         """
         loader = get_data_loader(dataset_name, data_path)
-        return loader.load_data(split)
+        return loader.load_data(split, schema_type, use_cache)
 
     def _initialize_trainer(self):
         """
@@ -110,7 +110,13 @@ class UnifiedPipeline:
         """
         print("--- Running SFT ---")
         sft_config = self.config['sft']
-        dataset = self._load_dataset(sft_config['dataset_name'], sft_config['data_path'], 'train')
+        dataset = self._load_dataset(
+            sft_config['dataset_name'], 
+            sft_config['data_path'], 
+            'train', 
+            sft_config['schema_type'], 
+            sft_config.get('use_cache', True)
+        )
         env = SFTEnvironment(dataset)
         ppo_trainer = self._initialize_trainer()
         self._train_loop(ppo_trainer, env, dataset)
@@ -144,7 +150,13 @@ class UnifiedPipeline:
         """
         print("--- Running Inference ---")
         infer_config = self.config['inference']
-        dataset = self._load_dataset(infer_config['dataset_name'], infer_config['data_path'], infer_config['split'])
+        dataset = self._load_dataset(
+            infer_config['dataset_name'], 
+            infer_config['data_path'], 
+            infer_config['split'], 
+            infer_config['schema_type'], 
+            infer_config.get('use_cache', True)
+        )
 
         provider_type = self.model_config.get("provider")
         model_name = self.model_config.get("name")

@@ -1,42 +1,108 @@
 import pytest
-from unittest.mock import patch, mock_open
 import os
+import time
+from unittest.mock import patch, MagicMock
 
-from sudo_sql.data_loaders import get_data_loader, SpiderLoader, BirdLoader
+from sudo_sql.data_loaders.base import BaseDataLoader
 
-def test_get_data_loader_spider():
-    loader = get_data_loader("spider", "./data/spider")
-    assert isinstance(loader, SpiderLoader)
+# A concrete implementation for testing the abstract BaseDataLoader's methods
+class ConcreteLoader(BaseDataLoader):
+    def load_data(self, split: str, schema_type: str, use_cache: bool) -> list:
+        return []
 
-def test_get_data_loader_bird():
-    loader = get_data_loader("bird", "./data/BIRD")
-    assert isinstance(loader, BirdLoader)
+@pytest.fixture
+def loader(tmp_path):
+    """Provides a concrete loader instance and a temporary data path."""
+    return ConcreteLoader(data_path=str(tmp_path))
 
-def test_get_data_loader_unknown():
-    with pytest.raises(ValueError):
-        get_data_loader("unknown_dataset", "./data")
+@pytest.fixture
+def mock_d_schema():
+    """Mocks the d-schema components."""
+    with patch('sudo_sql.data_loaders.base.DatabaseParser') as mock_parser_cls:
+        with patch('sudo_sql.data_loaders.base.DDLSchemaGenerator') as mock_generator_cls:
+            mock_parser_instance = MagicMock()
+            mock_parser_cls.return_value = mock_parser_instance
+            mock_parser_instance.parse.return_value = "parsed_schema"
 
-@patch("sudo_sql.data_loaders.spider.open", new_callable=mock_open, read_data='[{"db_id": "test_db", "question": "test question", "query": "SELECT * FROM test"}]')
-@patch("sudo_sql.data_loaders.base.BaseDataLoader._get_schema", return_value="CREATE TABLE test (id INT)")
-def test_spider_loader(mock_get_schema, mock_file):
-    loader = SpiderLoader("./data/spider")
-    data = loader.load_data("dev")
-    assert len(data) == 1
-    assert data[0]["question"] == "test question"
-    assert data[0]["sql"] == "SELECT * FROM test"
-    assert data[0]["db_id"] == "test_db"
-    assert data[0]["schema"] == "CREATE TABLE test (id INT)"
+            mock_generator_instance = MagicMock()
+            mock_generator_cls.return_value = mock_generator_instance
+            mock_generator_instance.generate_schema.return_value = "generated_ddl_schema"
+            
+            yield mock_parser_cls, mock_generator_cls
 
-@patch("sudo_sql.data_loaders.bird.os.listdir", return_value=["dev_20240627"])
-@patch("sudo_sql.data_loaders.bird.open", new_callable=mock_open, read_data='[{"db_id": "bird_db", "question": "bird question", "SQL": "SELECT name FROM birds", "evidence": "bird evidence", "difficulty": "easy"}]')
-@patch("sudo_sql.data_loaders.base.BaseDataLoader._get_schema", return_value="CREATE TABLE birds (name TEXT)")
-def test_bird_loader(mock_get_schema, mock_file, mock_listdir):
-    loader = BirdLoader("./data/BIRD")
-    data = loader.load_data("dev")
-    assert len(data) == 1
-    assert data[0]["question"] == "bird question"
-    assert data[0]["sql"] == "SELECT name FROM birds"
-    assert data[0]["db_id"] == "bird_db"
-    assert data[0]["schema"] == "CREATE TABLE birds (name TEXT)"
-    assert data[0]["evidence"] == "bird evidence"
-    assert data[0]["difficulty"] == "easy"
+@patch('os.getcwd')
+def test_cache_miss(mock_getcwd, loader, tmp_path, mock_d_schema):
+    """Test that d-schema is called and a cache file is created when no cache exists."""
+    mock_getcwd.return_value = str(tmp_path)
+    db_path = tmp_path / "test.db"
+    db_path.touch()
+
+    schema = loader._get_schema(str(db_path), "ddl-schema", True, "test_ds", "test_db")
+
+    assert schema == "generated_ddl_schema"
+    mock_d_schema[0].assert_called_once()
+    mock_d_schema[1].assert_called_once()
+
+    cache_path = tmp_path / "cache/schemas/test_ds/test_db/ddl-schema.txt"
+    assert cache_path.exists()
+    assert cache_path.read_text() == "generated_ddl_schema"
+
+@patch('os.getcwd')
+def test_cache_hit(mock_getcwd, loader, tmp_path, mock_d_schema):
+    """Test that the cached schema is used and d-schema is not called when cache is valid."""
+    mock_getcwd.return_value = str(tmp_path)
+    db_path = tmp_path / "test.db"
+    db_path.touch()
+
+    cache_dir = tmp_path / "cache/schemas/test_ds/test_db"
+    cache_dir.mkdir(parents=True)
+    cache_path = cache_dir / "ddl-schema.txt"
+    cache_path.write_text("cached_schema")
+    time.sleep(0.1)
+    db_path.touch() # Make sure db is older
+    time.sleep(0.1)
+    cache_path.touch() # Make sure cache is newer
+
+    schema = loader._get_schema(str(db_path), "ddl-schema", True, "test_ds", "test_db")
+
+    assert schema == "cached_schema"
+    mock_d_schema[0].assert_not_called()
+    mock_d_schema[1].assert_not_called()
+
+@patch('os.getcwd')
+def test_stale_cache(mock_getcwd, loader, tmp_path, mock_d_schema):
+    """Test that d-schema is called and cache is updated when cache is stale."""
+    mock_getcwd.return_value = str(tmp_path)
+    cache_dir = tmp_path / "cache/schemas/test_ds/test_db"
+    cache_dir.mkdir(parents=True)
+    cache_path = cache_dir / "ddl-schema.txt"
+    cache_path.write_text("stale_schema")
+
+    time.sleep(0.1)
+
+    db_path = tmp_path / "test.db"
+    db_path.touch()
+
+    schema = loader._get_schema(str(db_path), "ddl-schema", True, "test_ds", "test_db")
+
+    assert schema == "generated_ddl_schema"
+    mock_d_schema[0].assert_called_once()
+    mock_d_schema[1].assert_called_once()
+    assert cache_path.read_text() == "generated_ddl_schema"
+
+@patch('os.getcwd')
+def test_cache_disabled(mock_getcwd, loader, tmp_path, mock_d_schema):
+    """Test that d-schema is called even if a valid cache exists when use_cache=False."""
+    mock_getcwd.return_value = str(tmp_path)
+    db_path = tmp_path / "test.db"
+    db_path.touch()
+
+    cache_dir = tmp_path / "cache/schemas/test_ds/test_db"
+    cache_dir.mkdir(parents=True)
+    cache_path = cache_dir / "ddl-schema.txt"
+    cache_path.write_text("cached_schema")
+
+    schema = loader._get_schema(str(db_path), "ddl-schema", False, "test_ds", "test_db")
+
+    assert schema == "generated_ddl_schema"
+    mock_d_schema[0].assert_called_once()

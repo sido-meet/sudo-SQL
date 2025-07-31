@@ -9,3 +9,5 @@ inference:
   dataset_name: "spider"
   data_path: "./data/spider"
   split: "dev"
+  schema_type: "ddl-schema"
+  use_cache: true

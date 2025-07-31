@@ -3,7 +3,7 @@ import json
 from .base import BaseDataLoader, StandardizedDataFormat
 
 class BirdLoader(BaseDataLoader):
-    def load_data(self, split: str) -> list[StandardizedDataFormat]:
+    def load_data(self, split: str, schema_type: str, use_cache: bool) -> list[StandardizedDataFormat]:
         # BIRD has a nested structure, so we need to find the correct subdirectory
         # For simplicity, we'll assume the first subdirectory found is the correct one.
         # A more robust solution might involve configuration.
@@ -24,7 +24,7 @@ class BirdLoader(BaseDataLoader):
         for item in data:
             db_id = item['db_id']
             db_path = os.path.join(split_dir, 'dev_databases', db_id, f'{db_id}.sqlite')
-            schema = self._get_schema(db_path)
+            schema = self._get_schema(db_path, schema_type, use_cache, "bird", db_id)
 
             processed_data.append({
                 'question': item['question'],

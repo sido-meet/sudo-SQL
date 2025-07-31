@@ -3,7 +3,7 @@ import json
 from .base import BaseDataLoader, StandardizedDataFormat
 
 class SpiderLoader(BaseDataLoader):
-    def load_data(self, split: str) -> list[StandardizedDataFormat]:
+    def load_data(self, split: str, schema_type: str, use_cache: bool) -> list[StandardizedDataFormat]:
         if split == 'train':
             json_path = os.path.join(self.data_path, 'train_spider.json')
         else:
@@ -16,7 +16,7 @@ class SpiderLoader(BaseDataLoader):
         for item in data:
             db_id = item['db_id']
             db_path = os.path.join(self.data_path, 'database', db_id, f'{db_id}.sqlite')
-            schema = self._get_schema(db_path)
+            schema = self._get_schema(db_path, schema_type, use_cache, "spider", db_id)
 
             processed_data.append({
                 'question': item['question'],

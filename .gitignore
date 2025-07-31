@@ -3,6 +3,8 @@ schemas/
 
 # Virtual environment
 .venv/
+
+/cache/
 venv/
 ENV/
 env/
